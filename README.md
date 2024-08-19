@@ -37,3 +37,4 @@ This template comes with the following features:
 - `prettier:write` – formats all files with Prettier
 # raisethedeadrebalanc00r
 # raisethedeadrebalanc00r
+# raisethedeadrebalanc00r
