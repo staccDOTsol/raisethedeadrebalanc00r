@@ -2751,6 +2751,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@jup-ag/api@npm:^6.0.27":
+  version: 6.0.27
+  resolution: "@jup-ag/api@npm:6.0.27"
+  checksum: 0714d9071accf187663ad27d33442b9958d65d093d0bc4a3c00c08c59458a2570372add727199e1888f9f1fa3c22ca117c84d4522b4f954f4548386ec5cde619
+  languageName: node
+  linkType: hard
+
 "@keystonehq/bc-ur-registry-sol@npm:^0.3.1":
   version: 0.3.1
   resolution: "@keystonehq/bc-ur-registry-sol@npm:0.3.1"
@@ -15699,6 +15706,7 @@ __metadata:
     "@babel/core": "npm:^7.23.2"
     "@coral-xyz/anchor": "npm:0.29.0"
     "@coral-xyz/borsh": "npm:^0.30.1"
+    "@jup-ag/api": "npm:^6.0.27"
     "@mantine/carousel": "npm:^7.3.2"
     "@mantine/code-highlight": "npm:^7.3.2"
     "@mantine/core": "npm:^7.3.2"

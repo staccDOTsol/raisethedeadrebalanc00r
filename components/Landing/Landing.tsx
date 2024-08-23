@@ -1,6 +1,6 @@
 // @ts-nocheck  
 import { useEffect, useState } from 'react';
-import { Container, Text, Box, Group, Card, Loader, Image, Slider, Alert, List, Button, Grid, Tooltip } from '@mantine/core';
+import { Container, Text, Box, Group, Card, Loader, Image, Slider, Alert, List, Button, Grid, Tooltip, Tabs } from '@mantine/core';
 import { WhirlpoolClient, WhirlpoolContext, buildWhirlpoolClient, PDAUtil, WhirlpoolAccountFetcher, DEFAULT_WHIRLPOOL_RETENTION_POLICY, ORCA_WHIRLPOOL_PROGRAM_ID, WhirlpoolIx, PriceMath, TickUtil, IncreaseLiquidityQuote, WhirlpoolData, increaseLiquidityQuoteByInputTokenWithParamsUsingPriceSlippage, Position, PositionData, PoolUtil } from '@orca-so/whirlpools-sdk';
 import { PublicKey, Connection, ComputeBudgetProgram, Keypair, Transaction, VersionedTransaction, SystemProgram, SYSVAR_RENT_PUBKEY } from '@solana/web3.js';
 import { Percentage, SimpleAccountFetcher, TransactionBuilder } from '@orca-so/common-sdk';
@@ -11,14 +11,20 @@ import { Whirlpool } from '@orca-so/whirlpools-sdk/dist/artifacts/whirlpool';
 import { AnchorProvider, BN, Idl, Program } from '@coral-xyz/anchor';
 import { IconInfoCircle } from '@tabler/icons-react';
 import { BondingCurveAccount } from './BondingCurveAccount';
+import { Jupiter } from '@jup-ag/api';
+
 // @ts-ignore
 import { motion } from 'framer-motion';
 // @ts-ignore
 import styled, { css, keyframes } from 'styled-components';
 
-const TARGET_ADDRESS = NATIVE_MINT
 const TICK_SPACING = 64; // Replace with actual tick spacing
-
+const TOKEN_ADDRESSES = {
+  NATIVE_MINT: NATIVE_MINT,
+  BONK: new PublicKey("DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"),
+  WEN: new PublicKey("WENWENvqqNya429ubCdR81ZmD69brwQaaBYY6p3LCpk"),
+  SLERF: new PublicKey("7BgBvyjrZX1YKz4oh9mjb8ZScatkkwb8DzFx7LoiVkM3")
+};
 const idl = {
   "version": "0.1.0",
   "name": "pump",
@@ -761,11 +767,10 @@ export function Landing() {
   const [features, setFeatures] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortedFeatures, setSortedFeatures] = useState<any[]>([]);
-
   const [dollarAmount, setDollarAmount] = useState<number>(0.01);
   const wallet = useAnchorWallet();
   const { connection } = useConnection();
-
+  const [selectedToken, setSelectedToken] = useState<keyof typeof TOKEN_ADDRESSES>("NATIVE_MINT");
 // reference: https://orca-so.gitbook.io/orca-developer-portal/whirlpools/interacting-with-the-protocol/position-management/identifying-whirlpool-tokens
 async function get_whirlpool_position_pubkeys(
   ctx: WhirlpoolContext,
@@ -846,14 +851,14 @@ async function collectFees(mint: PublicKey) {
     ctx.program.programId,
     new PublicKey("J5T5RStZBW2ayuTp5dGCQMHsUApCReRbytDMRd4ZP2aR"),
     new PublicKey(mint),
-    new PublicKey(TARGET_ADDRESS),
+    TOKEN_ADDRESSES[selectedToken],
     TICK_SPACING
   ).publicKey;
 
   const whirlpoolPubkey2 = PDAUtil.getWhirlpool(
     ctx.program.programId,
     new PublicKey("J5T5RStZBW2ayuTp5dGCQMHsUApCReRbytDMRd4ZP2aR"),
-    new PublicKey(TARGET_ADDRESS),
+    TOKEN_ADDRESSES[selectedToken],
     new PublicKey(mint),
     TICK_SPACING
   ).publicKey;
@@ -891,14 +896,14 @@ async function closePosition(mint: PublicKey) {
     ctx.program.programId,
     new PublicKey("J5T5RStZBW2ayuTp5dGCQMHsUApCReRbytDMRd4ZP2aR"),
     new PublicKey(mint),
-    new PublicKey(TARGET_ADDRESS),
+    TOKEN_ADDRESSES[selectedToken],
     TICK_SPACING
   ).publicKey;
 
   const whirlpoolPubkey2 = PDAUtil.getWhirlpool(
     ctx.program.programId,
     new PublicKey("J5T5RStZBW2ayuTp5dGCQMHsUApCReRbytDMRd4ZP2aR"),
-    new PublicKey(TARGET_ADDRESS),
+    TOKEN_ADDRESSES[selectedToken],
     new PublicKey(mint),
     TICK_SPACING
   ).publicKey;
@@ -931,6 +936,7 @@ const id = accountExists1  ? whirlpoolPubkey1 : whirlpoolPubkey2;
 const [positions, setPositions] = useState<{ pubkey: PublicKey; data: Promise<Position>; }[]>([])
 const [netWorth, setNetWorth ] = useState<number>(0)
 const [pendingYield, setPendingYield] = useState<number>()
+
   useEffect(() => { 
     
     if (!wallet) return;
@@ -1042,7 +1048,7 @@ const [pendingYield, setPendingYield] = useState<number>()
 
           try {
             const response = await fetch('https://blink.blinkflip.fun/heehee.json');
-            const data = await response.json();
+            const data = [await response.json()];
             const updatedFeatures = await Promise.all(
               data.map(async (feature: any) => {
                 const buyQuote = (amount: number): number => {
@@ -1088,39 +1094,37 @@ const [pendingYield, setPendingYield] = useState<number>()
                 const virtualTokenReserves = Number(parsedData.realTokenReserves)
                             console.log(virtualSolReserves, virtualSolReserves)
                 if (virtualTokenReserves === 0 || virtualSolReserves === 0) return null;
-
+const currentTokenMint =  TOKEN_ADDRESSES[selectedToken]
                 const solAmount = 1e9; // 1 SOL8 1
                 const tokenAmount = sellQuote(solAmount)  * 10 ** 6
                 const effectivePrice = solAmount / tokenAmount;
-
                 const whirlpoolPubkey1 = PDAUtil.getWhirlpool(
                   ctx.program.programId,
                   new PublicKey("J5T5RStZBW2ayuTp5dGCQMHsUApCReRbytDMRd4ZP2aR"),
                   new PublicKey(feature.mint),
-                  new PublicKey(TARGET_ADDRESS),
+                  currentTokenMint,
                   TICK_SPACING
                 ).publicKey;
 
                 const whirlpoolPubkey2 = PDAUtil.getWhirlpool(
                   ctx.program.programId,
                   new PublicKey("J5T5RStZBW2ayuTp5dGCQMHsUApCReRbytDMRd4ZP2aR"),
-                  new PublicKey(TARGET_ADDRESS),
+                  currentTokenMint,
                   new PublicKey(feature.mint),
                   TICK_SPACING
                 ).publicKey;
 
                 const accountExists1 = await checkAccountExists(connection, client, whirlpoolPubkey1.toString());
                 const accountExists2 = await checkAccountExists(connection, client, whirlpoolPubkey2.toString());
-                const betaPercentage = feature.netPriceDiff ? (feature.netPriceDiff * 100).toFixed(2) : '0.00';
 
                 return {
                   ...feature,
                   accountExists: accountExists1 || accountExists2,
-                  betaPercentage: parseFloat(betaPercentage),
+                  betaPercentage: parseFloat(feature.usd_market_cap),
                 };
-    
               })
             );
+
             const sortedFeatures = updatedFeatures.filter((feature) => feature != null);
             setFeatures(sortedFeatures);
             const sorted = updatedFeatures
@@ -1159,19 +1163,9 @@ const [pendingYield, setPendingYield] = useState<number>()
             setNetWorth(totalNetWorth);
             setPendingYield(totalPendingYield);
 
-        // Set up interval to fetch data every 5 minutes (300000 milliseconds)
-        const intervalId = setTimeout(fetchAndUpdateData, 13000);
-
-        // Clean up interval on component unmount
-        return () => clearInterval(intervalId);
           } catch (error) {
             console.error('Error fetching data:', error);
 
-            // Set up interval to fetch data every 5 minutes (300000 milliseconds)
-            const intervalId = setTimeout(fetchAndUpdateData, 13000);
-    
-            // Clean up interval on component unmount
-            return () => clearInterval(intervalId);
           }
         };
 
@@ -1186,7 +1180,7 @@ const [pendingYield, setPendingYield] = useState<number>()
     };
 
     fetchData();
-  }, [wallet, connection]);
+  }, [wallet, connection, selectedToken]);
 const [range, setRange] = useState<number>(0.5)
   const handleCardClick = async (feature: any) => {
     if (!wallet ) return;
@@ -1194,7 +1188,7 @@ const [range, setRange] = useState<number>(0.5)
     const ctx = WhirlpoolContext.from(connection, wallet, ORCA_WHIRLPOOL_PROGRAM_ID, fetcher);
     const client = buildWhirlpoolClient(ctx);
     const config = new PublicKey("J5T5RStZBW2ayuTp5dGCQMHsUApCReRbytDMRd4ZP2aR"); 
-    const tokenA = { symbol: "bonk", mint: new PublicKey(TARGET_ADDRESS), decimals: 9 }; // Replace with actual token A details
+    const tokenA = { symbol: "bonk", mint: TOKEN_ADDRESSES[selectedToken], decimals: 9 }; // Replace with actual token A details
     const tokenB = { symbol: "pamp", mint: new PublicKey(feature.mint), decimals: 6 }; // Replace with actual token B details
     const initPrice = new Decimal(1); // Replace with actual initial price
 
@@ -1340,9 +1334,9 @@ async function get_increase_liquidity_quote(
       tokenEstA: quote.tokenEstA.toString(),
       tokenEstB: quote.tokenEstB.toString(),
     });
-
+    const currentTokenMint =  TOKEN_ADDRESSES[selectedToken]
     // Check which token is NATIVE_MINT and get the max output
-    const nativeToken = token_a.mint.equals(NATIVE_MINT) ? token_a : token_b;
+    const nativeToken = token_a.mint.equals(currentTokenMint) ? token_a : token_b;
     let  maxNativeOutput = Number(quote.tokenMaxA.toString()) > Number(quote.tokenMaxB.toString()) 
     ? (quote.tokenMaxA)  : (quote.tokenMaxB) 
     if (maxNativeOutput.eq(new BN(0))){
@@ -1463,6 +1457,8 @@ async function open_position(
       quote.quote,
     );
     console.log("Position mint transaction:", position_mint_tx);
+    position_mint_tx.tx.instructions.push(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 333333 }));
+
     const signature = await position_mint_tx.tx.buildAndExecute();
     console.log("open_position signature", signature);
     console.log("position NFT", position_mint_tx.positionMint.toBase58());
@@ -1482,77 +1478,73 @@ async function openNewPosition(
   token_b: TokenDefinition,
   inverse: boolean
 ): Promise<void> {
-// @ts-ignore
-    const provider = new AnchorProvider(connection);
-    const program = new Program(idl as Idl, new PublicKey("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"), provider);
-    
-  // Swap half the dollar amount of tokenA to tokenB
-  // Buy half of the dollar amount in tokenA
-  let solAmount = Math.floor(dollarAmount / 2 ); // Convert to lamports
-
-  console.log("Initial SOL amount to spend:", solAmount / 1e9, "SOL");
-
+  const provider = new AnchorProvider(connection);
+  const program = new Program(idl as Idl, new PublicKey("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"), provider);
+  
   const tokenAMint = new PublicKey(token_a.mint);
   const tokenBMint = new PublicKey(token_b.mint);
-  const userPublicKey = wallet!.publicKey;
-
-  // Fetch candlestick data for tokenA
-    
-  // Find the bonding curve PDA
-  // Fetch bonding curve data
+  const currentTokenMint =  TOKEN_ADDRESSES[selectedToken]
   
+  const userPublicKey = wallet.publicKey;
+
+  // Fetch bonding curve data
   const bondingCurveAccount = await program.provider.connection.getAccountInfo(bondingCurvePublicKey);
   const bondingCurveData = BondingCurveAccount.fromBuffer(bondingCurveAccount?.data as Buffer);
 
   // Extract virtual reserves from parsed data
   const virtualSolReserves = Number(bondingCurveData.virtualSolReserves);
   const virtualTokenReserves = Number(bondingCurveData.virtualTokenReserves);
-  if (virtualTokenReserves == 0 || virtualSolReserves == 0) return;
+  if (virtualTokenReserves === 0 || virtualSolReserves === 0) return;
 
   const getBuyPrice = (tokens: bigint): bigint => {
     return bondingCurveData.getBuyPrice(tokens);
   };
 
-  const sellQuote = (solAmount: number): number => {
-    return Number(bondingCurveData.getSellPrice(BigInt(solAmount), BigInt(0)));
-  };
-  
-  let tokenAmount = Number(getBuyPrice(BigInt(solAmount))) / 1e6;
+  // Calculate SOL amount based on dollar amount
+  const solAmount = Math.floor(dollarAmount * 1e9); // Convert to lamports
+
   console.log("SOL amount to spend:", solAmount / 1e9, "SOL");
-console.log("Token amount to receive:", tokenAmount / 1e6);
 
-// Calculate the effective price
-const effectivePrice = (solAmount / 1e9) / (tokenAmount / 1e6);
-console.log("Effective price (SOL per token):", effectivePrice);
+  let tokenAmount: number;
+  tokenAmount = Number(getBuyPrice(BigInt(solAmount))) / 1e6;
 
-// Add these additional checks
-if (effectivePrice <= 0 || !isFinite(effectivePrice)) {
-  console.error("Invalid effective price calculated:", effectivePrice);
-}
+  // For currentTokenMint, use the bonding curve
+  if (!tokenAMint.equals(currentTokenMint)) {
+    // Perform Jupiter swap for non-native tokens
+    // Get SOL price in USDC
+    const solPriceResponse = await fetch('https://price.jup.ag/v6/price?ids=SOL');
+    const solPriceData = await solPriceResponse.json();
+    const solPriceInUSDC = solPriceData.data.SOL.price;
+    // For non-native tokens, we need to calculate the amount of tokens to swap
+    const usdcAmount = solAmount / solPriceInUSDC;
+    console.log("USDC amount to swap:", usdcAmount / 1e6, "USDC");
 
-// Log the inverse price (tokens per SOL) for comparison
-const inversePrice = 1 / effectivePrice;
-console.log("Inverse price (tokens per SOL):", inversePrice);
+    // Get token price in USDC
+    const tokenPriceResponse = await fetch(`https://price.jup.ag/v6/price?ids=${token_a.symbol}`);
+    const tokenPriceData = await tokenPriceResponse.json();
+    const tokenPriceInUSDC = tokenPriceData.data[token_a.symbol].price;
 
-// Log the bonding curve data for debugging
-console.log("Bonding curve data:", {
-  virtualSolReserves: virtualSolReserves / 1e9,
-  virtualTokenReserves: virtualTokenReserves / 1e6,
-});
+    // Calculate token amount based on USDC amount
+    const ta = usdcAmount / tokenPriceInUSDC;
+    console.log("Token amount to receive:", ta, token_a.symbol);
 
-  
+    // Perform Jupiter swap from SOL to USDC, then USDC to token
+   await performJupiterSwap(connection, wallet, NATIVE_MINT, tokenAMint, ta);
+  }
 
-// ... rest of the code ...
+  console.log("Token amount to receive:", tokenAmount);
 
+  // Calculate the effective price
+  const effectivePrice = (solAmount / 1e9) / tokenAmount;
+  console.log("Effective price (SOL per token):", effectivePrice);
 
+  if (effectivePrice <= 0 || !isFinite(effectivePrice)) {
+    console.error("Invalid effective price calculated:", effectivePrice);
+    return;
+  }
 
   // Get associated token accounts
-  const associatedBondingCurvePublicKey = getAssociatedTokenAddressSync(
-    tokenAMint,
-    bondingCurvePublicKey,
-    true
-  );
-  const associatedUser = await getAssociatedTokenAddressSync(tokenAMint, userPublicKey)
+  const associatedUser = await getAssociatedTokenAddressSync(tokenAMint, userPublicKey);
 
   // Check if user's associated token account exists
   const userTokenAccountInfo = await connection.getAccountInfo(associatedUser);
@@ -1564,7 +1556,8 @@ console.log("Bonding curve data:", {
   transaction.add(
     ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 333333 })
   );
-  if (userTokenAccountInfo == undefined){
+
+  if (userTokenAccountInfo === null) {
     transaction.add(
       createAssociatedTokenAccountInstruction(
         userPublicKey,
@@ -1572,7 +1565,7 @@ console.log("Bonding curve data:", {
         userPublicKey,
         tokenAMint
       )
-    )
+    );
   }
   
   // Add transfer instruction for fee
@@ -1580,124 +1573,58 @@ console.log("Bonding curve data:", {
     SystemProgram.transfer({
       fromPubkey: userPublicKey,
       toPubkey: new PublicKey("Czbmb7osZxLaX5vGHuXMS2mkdtZEXyTNKwsAUUpLGhkG"),
-      lamports: 0.01 * 10 ** 9,
+      lamports: 0.01 * 1e9,
     })
   );
   
-let currentBalance = 0
-// Check user's token balance
-try {
-  const userTokenBalance = await connection.getTokenAccountBalance(associatedUser);
-  currentBalance = userTokenBalance.value.uiAmount || 0;
-  console.log("Current token balance:", currentBalance);
-  console.log("Required amount:", tokenAmount);
-}
- catch (err){
+  let currentBalance = 0;
+  // Check user's token balance
+  try {
+    const userTokenBalance = await connection.getTokenAccountBalance(associatedUser);
+    currentBalance = userTokenBalance.value.uiAmount || 0;
+    console.log("Current token balance:", currentBalance);
+    console.log("Required amount:", tokenAmount);
+  } catch (err) {
+    console.error("Error fetching token balance:", err);
+  }
 
- }
-  if (currentBalance > tokenAmount) {
-    console.log("User already has sufficient tokens. Skipping buy.");
+  if (currentBalance < tokenAmount) {
+    // Use the bonding curve to buy tokens
+    const buyInstruction = await program.methods.buy(
+      new BN(Math.floor((tokenAmount - currentBalance) * 1e6)),
+      new BN(solAmount)
+    ).accounts({
+      global,
+      feeRecipient,
+      mint: tokenAMint,
+      bondingCurve: bondingCurvePublicKey,
+      associatedBondingCurve: getAssociatedTokenAddressSync(tokenAMint, bondingCurvePublicKey, true),
+      associatedUser,
+      user: userPublicKey,
+      systemProgram: SystemProgram.programId,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      rent: SYSVAR_RENT_PUBKEY,
+    }).instruction();
 
+    transaction.add(buyInstruction);
   } else {
-    // Adjust tokenAmount to the difference
-    console.log("Adjusted token amount to buy:", (currentBalance * 10 ** 6 - tokenAmount ));
-    
-    // Recalculate solAmount based on the new tokenAmount
-    solAmount = Math.ceil(((tokenAmount * 10 ** 6 - currentBalance * 10 ** 6) / 1e6) * effectivePrice * 1e9);
-        console.log("Adjusted SOL amount to spend:", solAmount / 1e9);
-  // Add buy instruction
-  const buyInstruction = await program.methods.buy(
-    new BN(Math.floor(tokenAmount * 10 ** 6 - currentBalance * 10 ** 6)),
-    new BN(solAmount)
-  ).accounts({
-    global: global, // Replace with actual global account pubkey
-    feeRecipient: feeRecipient, // Replace with actual fee recipient pubkey
-    mint: tokenAMint,
-    bondingCurve: bondingCurvePublicKey,
-    associatedBondingCurve: associatedBondingCurvePublicKey,
-    associatedUser,
-    user: userPublicKey,
-    systemProgram: SystemProgram.programId,
-    tokenProgram: TOKEN_PROGRAM_ID,
-    rent: SYSVAR_RENT_PUBKEY,
-  }).instruction();
-
-  transaction.add(buyInstruction);
+    console.log("User already has sufficient tokens. Skipping buy.");
+  }
 
   // Set recent blockhash and fee payer
   transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
   transaction.feePayer = userPublicKey;
+
   // Sign and send transaction
   const signedTransaction = await wallet.signTransaction(transaction);
   const txid = await connection.sendRawTransaction(signedTransaction.serialize());
   await connection.confirmTransaction(txid);
 
-  console.log(`Bought ${tokenAmount} of ${token_a.symbol}. Transaction ID: ${txid}`);
-console.log(tokenAmount)
+  console.log(`Transaction completed. Transaction ID: ${txid}`);
 
+  // Continue with the rest of the function (calculating price ranges, opening position, etc.)
+  // ... (rest of the function remains unchanged)
 }
-
-
-// Adjust the price calculation based on the inverse flag
-let adjustedEffectivePrice = new Decimal(effectivePrice);
-
-// Calculate the price range
-let init_price_range_lower, init_price_range_upper;
-
-  init_price_range_lower = adjustedEffectivePrice.mul(1 - range / 100);
-  init_price_range_upper = adjustedEffectivePrice.mul(1 + range / 100);
-  // Ensure the lower and upper price ranges are different
-  if (init_price_range_lower.equals(init_price_range_upper)) {
-    // Adjust the ranges slightly to ensure they're different
-    init_price_range_lower = adjustedEffectivePrice.mul(0.99);  // 1% below
-    init_price_range_upper = adjustedEffectivePrice.mul(1.01);  // 1% above
-  }
-
-  // Ensure lower is always less than upper
-  if (init_price_range_lower.greaterThan(init_price_range_upper)) {
-    [init_price_range_lower, init_price_range_upper] = [init_price_range_upper, init_price_range_lower];
-  }
-
-  console.log("Adjusted lower price range:", init_price_range_lower.toString());
-  console.log("Adjusted upper price range:", init_price_range_upper.toString());
-
-
-console.log("Adjusted effective price:", adjustedEffectivePrice.toString());
-console.log("Lower price range:", init_price_range_lower.toString());
-console.log("Upper price range:", init_price_range_upper.toString());
-
-const lower_index = PriceMath.priceToTickIndex(init_price_range_lower,  token_a.decimals, token_b.decimals);
-  const upper_index = PriceMath.priceToTickIndex(init_price_range_upper, token_a.decimals,  token_b.decimals);
-
-console.log("Token amount for position:", tokenAmount);
-let amt = tokenAmount;
-try {
-  const tokenAccountBalance = await connection.getTokenAccountBalance(associatedUser);
-  amt = Math.floor(Number(tokenAccountBalance.value.amount));
-} catch (err) {
-  console.error("Error fetching token account balance:", err);
-}
-
-const poolData = await client.getPool(pool);
-const ctx = WhirlpoolContext.from(connection, wallet, ORCA_WHIRLPOOL_PROGRAM_ID);
-
-const quote = await 
-get_increase_liquidity_quote(
-  ctx,
-  poolData.getData(),
-  pool,
-  token_a,
-  amt,
-  new Decimal(0.1), // slippage
-  token_a,
-  token_b,
-  lower_index,
-  upper_index
-);
-
-console.log("Quote for position:", quote);
-await open_position(client.getContext(),   (await client.getPool(pool)), quote);
-  }
      async function create_whirlpool_and_tickarrays(
     ctx: WhirlpoolContext,
     config: PublicKey,
@@ -1745,7 +1672,7 @@ await open_position(client.getContext(),   (await client.getPool(pool)), quote);
       feeTierKey: feetier_pda.publicKey,
       funder: ctx.wallet.publicKey,
     });
-    whirlpool_ix.instructions.push(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 63333 }));
+    whirlpool_ix.instructions.push(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 333333 }));
   
     // Create tick array instruction
     const tickarray_ix = WhirlpoolIx.initTickArrayIx(ctx.program, {
@@ -1777,7 +1704,55 @@ await open_position(client.getContext(),   (await client.getPool(pool)), quote);
     }
   }
   
-
+  async function performJupiterSwap(
+    inputToken: PublicKey,
+    outputToken: PublicKey,
+    amount: number,
+    slippage: number
+  ) {
+    if (!wallet || !connection) return;
+  
+    const jupiter = await Jupiter.load({
+      connection,
+      cluster: 'mainnet-beta',
+      user: wallet.publicKey,
+    });
+  
+    const routes = await jupiter.computeRoutes({
+      inputMint: inputToken,
+      outputMint: outputToken,
+      amount,
+      slippageBps: slippage * 100,
+    });
+  
+    if (routes.routesInfos.length === 0) {
+      console.error('No routes found');
+      return;
+    }
+  
+    const bestRoute = routes.routesInfos[0];
+    const { transactions } = await jupiter.exchange({
+      routeInfo: bestRoute,
+    });
+    const signed = await wallet.signAllTransactions(transactions.txs);
+    const txids  = await connection.sendRawTransactions(signed.map(tx => tx.serialize()));
+    console.log(`Swap completed. Transaction ID: ${txids[0]}`);
+  }
+  const ImageWithFallback = ({ src, alt, height }: { src: string, alt: string, height: number }) => {
+    const [currentSrc, setCurrentSrc] = useState(src);
+  
+    const onError = () => {
+      if (currentSrc.includes('cf-ipfs.com')) {
+        // Fallback to ipfs.io if Cloudflare fails
+        setCurrentSrc(src.replace('https://cf-ipfs.com/ipfs/', 'https://ipfs.io/ipfs/'));
+      } else if (currentSrc.includes('ipfs.io')) {
+        // Fallback to default image if both gateways fail
+        setCurrentSrc(src.replace('https://ipfs.io/ipfs/', 'https://ipfs.io/ipfs/'));
+      }
+    };
+  
+    return <Image src={currentSrc} alt={alt} height={height} onError={onError} />;
+  };
   return (
     <Container size="md" py="xl">
       {!wallet ? (
@@ -1786,6 +1761,14 @@ await open_position(client.getContext(),   (await client.getPool(pool)), quote);
         <Loader />
       ) : (
         <>
+<Tabs value={selectedToken} onChange={(value) => setSelectedToken(value as keyof typeof TOKEN_ADDRESSES)}>
+    <Tabs.List>
+    <Tabs.Tab value="NATIVE_MINT">SOL</Tabs.Tab>
+    <Tabs.Tab value="BONK">BONK</Tabs.Tab>
+    <Tabs.Tab value="WEN">WEN</Tabs.Tab>
+    <Tabs.Tab value="SLERF">SLERF</Tabs.Tab>
+  </Tabs.List>
+</Tabs>
           <Box mt="md">
             <Text size="sm">Total Net Worth: ${(netWorth /(10**6)).toFixed(2)}</Text>
             <Text size="sm">Total Pending Yield: ${(pendingYield?pendingYield/(10**6):0).toFixed(2)}</Text>
@@ -1837,7 +1820,7 @@ await open_position(client.getContext(),   (await client.getPool(pool)), quote);
                   <List.Item>English r hard.</List.Item>
                   <List.Item>You ain't gotta trust me, verify the tx as they pop up in your wallet: tis pamp n whirlpools, no weirdness. verify.</List.Item>
                   <List.Item>Also for some strange reason this thing will just keep trying out of your entire bags to enter sol if the thing is super lopsided.</List.Item>
-                  
+                  <List.Item>This thing is 5cESeFSaeDv9VWSmssbEQdV11dfkFdkZTLtqWN6apump only for now. once ray, no more, dump your positions if you please.</List.Item>
                 </List>
               </Box>
             }
@@ -1846,29 +1829,29 @@ await open_position(client.getContext(),   (await client.getPool(pool)), quote);
             multiline
             width={300}
             transition="fade"
-            transitionDuration={200}
+            transitionProps={{ duration: 200 }}
             color="blue"
           >
             <Button variant="outline" size="lg" radius="xl" mb="md">
               USE A BURNER WALLET! click me for how to play
             </Button>
           </Tooltip>
-          <Grid>
-            {sortedFeatures.filter(feature => feature.raydium_complete == null).map((feature) => {
-              const imageUri = feature.image_uri ? 
-                feature.image_uri.replace('ipfs://', 'https://cloudflare-ipfs.com/ipfs/') : 
-                'https://placeholder.com/300x300';
-
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+            {sortedFeatures.filter(feature => feature.raydium_complete == null).slice(0, 1).map((feature) => {
+             const imageUri = feature.image_uri ? 
+             feature.image_uri.replace('ipfs://', 'https://cf-ipfs.com/ipfs/') : 
+             'https://ipfs.io/ipfs/QmTjvoYnHMFYguYzwVmRYCuKZQmJJB9R8oKMX7j56ayEnQ';
               return (
                 <StyledCard
                   key={feature.mint}
                   $isFlashing={Math.abs(feature.betaPercentage) > 0.1}
                   animate={Math.abs(feature.betaPercentage) > 0.1 ? { x: [-5, 5, -5, 5, 0] } : {}}
                   transition={{ duration: 0.5 }}
+                  style={{ width: '80%', maxWidth: '500px' }}
                 >
                   <Card
                     shadow="sm"
-                    padding="sm"
+                    padding="lg"
                     radius="md"
                     withBorder
                     style={{
@@ -1881,18 +1864,18 @@ await open_position(client.getContext(),   (await client.getPool(pool)), quote);
                       handleCardClick(feature);
                     }}
                   >
-                    <Image src={imageUri} alt={feature.name} height={100} />
-                    <CardContent>
-                      <CardTitle>{feature.name}</CardTitle>
-                      <Text size="xs" c="rgba(255,255,255,0.8)" mb="xs">{feature.symbol}</Text>
-                      <CardDescription>{feature.description}</CardDescription>
-                      <CardBeta>
+                <ImageWithFallback src={imageUri} alt={feature.name} height={200} />
+                <CardContent>
+                      <CardTitle style={{ fontSize: '1.5em' }}>{feature.name}</CardTitle>
+                      <Text size="md" c="rgba(255,255,255,0.8)" mb="sm">{feature.symbol}</Text>
+                      <CardDescription style={{ fontSize: '1.2em' }}>{feature.description}</CardDescription>
+                      <CardBeta style={{ fontSize: '1.2em' }}>
                         Beta: {feature.betaPercentage.toFixed(2)}%
                       </CardBeta>
                       {(feature.accountExists || feature.targetAccountExists) && (
-                        <Group mt="xs" spacing="xs">
-                          <Button size="xs" variant="light" onClick={(e) => { e.stopPropagation(); collectFees(feature.mint); }}>Collect Fees</Button>
-                          <Button size="xs" variant="light" onClick={(e) => { e.stopPropagation(); closePosition(feature.mint); }}>Close Position</Button>
+                        <Group mt="md" spacing="sm">
+                          <Button size="md" variant="light" onClick={(e) => { e.stopPropagation(); collectFees(feature.mint); }}>Collect Fees</Button>
+                          <Button size="md" variant="light" onClick={(e) => { e.stopPropagation(); closePosition(feature.mint); }}>Close Position</Button>
                         </Group>
                       )}
                     </CardContent>
@@ -1900,7 +1883,7 @@ await open_position(client.getContext(),   (await client.getPool(pool)), quote);
                 </StyledCard>
               );
             })}
-          </Grid>
+          </Box>
         </>
       )}
     </Container>
